@@ -78,7 +78,7 @@ pub struct MqttClientConfiguration<'a> {
     pub server_certificate: Option<X509<'static>>,
 
     pub client_certificate: Option<X509<'static>>,
-    pub private_key: Option<X509<'static>>,
+    pub private_key: Option<PrivateKeyProvider<'a>>,
     pub private_key_password: Option<&'a str>,
 
     #[cfg(all(esp_idf_esp_tls_psk_verification, feature = "alloc"))]
@@ -197,8 +197,16 @@ impl<'a> TryFrom<&'a MqttClientConfiguration<'a>>
             c_conf.client_cert_pem = cert.as_esp_idf_raw_ptr() as _;
             c_conf.client_cert_len = cert.as_esp_idf_raw_len();
 
-            c_conf.client_key_pem = private_key.as_esp_idf_raw_ptr() as _;
-            c_conf.client_key_len = private_key.as_esp_idf_raw_len();
+            match private_key {
+                PrivateKey::Pem(key) => {
+                    c_conf.client_key_pem = key.as_esp_idf_raw_ptr() as _;
+                    c_conf.client_key_len = key.as_esp_idf_raw_len();
+                }
+                #[cfg(all(esp_idf_comp_espressif__esp_secure_cert_mgr_enabled, esp32s3))]
+                PrivateKey::DigitalSignature(_) => {
+                    c_conf.credentials.authentication.ds_data = ds.as_ptr() as _;
+                }
+            }
 
             if let Some(pass) = conf.private_key_password {
                 c_conf.clientkey_password = pass.as_ptr() as _;
@@ -307,8 +315,16 @@ impl<'a> TryFrom<&'a MqttClientConfiguration<'a>>
             c_conf.credentials.authentication.certificate = cert.as_esp_idf_raw_ptr() as _;
             c_conf.credentials.authentication.certificate_len = cert.as_esp_idf_raw_len();
 
-            c_conf.credentials.authentication.key = private_key.as_esp_idf_raw_ptr() as _;
-            c_conf.credentials.authentication.key_len = private_key.as_esp_idf_raw_len();
+            match conf.private_key {
+                PrivateKey::Pem(key) => {
+                    c_conf.credentials.authentication.key = key.as_esp_idf_raw_ptr() as _;
+                    c_conf.credentials.authentication.key_len = key.as_esp_idf_raw_len();
+                }
+                #[cfg(all(esp_idf_comp_espressif__esp_secure_cert_mgr_enabled, esp32s3))]
+                PrivateKey::DigitalSignature(ds) => {
+                    c_conf.credentials.authentication.ds_data = ds.as_ptr() as _;
+                }
+            }
 
             if let Some(pass) = conf.private_key_password {
                 c_conf.credentials.authentication.key_password = pass.as_ptr() as _;
