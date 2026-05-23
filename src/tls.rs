@@ -115,6 +115,14 @@ impl Debug for X509<'_> {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum PrivateKeyProvider<'a> {
+    Pem(X509<'a>),
+    #[cfg(esp_idf_comp_espressif__esp_secure_cert_mgr_enabled)]
+    DigitalSignature(&'a crate::hal::ds::DsDriver<'a>),
+}
+
+
 #[cfg(all(
     esp_idf_comp_esp_tls_enabled,
     any(esp_idf_esp_tls_using_mbedtls, esp_idf_esp_tls_using_wolfssl)
